@@ -1,0 +1,66 @@
+XDatabase Proxy Dual License
+
+## Part 1: Open Source License
+
+Copyright (c) 2024 XDatabase Proxy Contributors
+
+Permission is hereby granted, free of charge, to any person or organization obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the following conditions:
+
+1. The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+2. Organizations with annual revenue exceeding USD 100,000 must comply with Part 2 (Commercial License) of this license.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Part 2: Commercial License
+
+For organizations with annual revenue exceeding USD 100,000, the following tier-based pricing applies:
+
+1. License Fee Tiers (Annual):
+
+   - Startup Tier (Revenue $100K - $1M): $500/year
+   - Business Tier (Revenue $1M - $10M): $2,000/year
+   - Enterprise Tier (Revenue $10M - $50M): $5,000/year
+   - Corporate Tier (Revenue $50M+): $10,000/year
+
+   Each tier includes:
+
+   - Unlimited database instances
+   - All features and updates
+   - Email support (response within 2 business days)
+   - Security patches and hotfixes
+
+   Additional services (optional):
+
+   - Priority support: +$2,000/year
+   - Custom feature development: Quoted separately
+   - On-site consultation: Quoted separately
+
+2. Payment Terms:
+
+   - Fees are paid annually in advance
+   - Payments are due within 30 days of license renewal
+   - First payment is due before commercial usage begins
+
+3. Usage Rights:
+
+   - Full rights to use, modify, and distribute the software
+   - Access to commercial support based on tier level
+   - Rights to create and distribute derivative works
+   - Access to private repository and documentation
+
+4. Obligations:
+
+   - Maintain accurate records of revenue
+   - Annual revenue declaration for tier verification
+   - Keep confidential any modifications or improvements
+   - Report critical bugs and security issues
+
+5. Term and Termination:
+   - License remains in effect as long as payments are current
+   - Termination occurs if payments are 60 days overdue
+   - Upon termination, all usage rights revert to Open Source License terms
+   - 30-day written notice required for voluntary termination
+
+For commercial licensing inquiries or questions:
+Contact: github.com/hasirciogli/xdatabase-proxy/issues

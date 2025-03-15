@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xdatabase-proxy
+spec:
+  selector:
+    matchLabels:
+      app: xdatabase-proxy
+  template:
+    metadata:
+      labels:
+        app: xdatabase-proxy
+    spec:
+      containers:
+        - name: xdatabase-proxy
+          image: ghcr.io/hasirciogli/xdatabase-proxy:latest
+          ports:
+            - containerPort: 1881
+              name: proxy-port
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: proxy-port
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: proxy-port
+            initialDelaySeconds: 5
+            periodSeconds: 10

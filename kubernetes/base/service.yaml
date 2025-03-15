@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: xdatabase-proxy
+spec:
+  selector:
+    app: xdatabase-proxy
+  ports:
+    - port: 1881
+      targetPort: proxy-port
+      name: proxy-port
+  type: ClusterIP

@@ -1,0 +1,106 @@
+name: Deploy XDatabase Proxy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  release:
+    types: [created]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23.4"
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: hasirciogli
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/hasirciogli/xdatabase-proxy
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  create-release:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Install changelog-parser
+        run: npm install -g changelog-parser
+
+      - name: Parse Changelog
+        id: changelog
+        run: |
+          CHANGELOG_CONTENT=$(changelog-parser CHANGELOG.md)
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          VERSION_WITHOUT_V="${VERSION#v}"
+
+          # Extract the relevant version's changes
+          CHANGES=$(echo "$CHANGELOG_CONTENT" | jq -r --arg v "$VERSION_WITHOUT_V" '.versions[] | select(.version==$v) | .body')
+
+          if [ -z "$CHANGES" ]; then
+            echo "No changelog entry found for version $VERSION"
+            CHANGES="## What's Changed in $VERSION\n* No changelog entry found for this version\n* Docker image tagged as $VERSION"
+          fi
+
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
