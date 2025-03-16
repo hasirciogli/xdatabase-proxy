@@ -19,6 +19,9 @@ spec:
             - containerPort: 1881
               hostPort: 1881
               name: proxy-port
+          env:
+            - name: MODE
+              value: production
           resources:
             requests:
               cpu: 100m

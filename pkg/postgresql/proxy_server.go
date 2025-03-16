@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 
@@ -159,8 +160,10 @@ func (p *PostgresProxy) validateAndModifyUsername(params *StartupParameters) (*k
 	params.Parameters["user"] = baseUsername
 	p.rebuildStartupMessage(params)
 
-	log.Printf("Routing connection for deployment %s to %s:%d (pooled: %v)",
-		deploymentID, svc.ClusterIP, svc.Port, svc.PooledConnection)
+	if os.Getenv("MODE") != "production" {
+		log.Printf("Routing connection for deployment %s to %s:%d (pooled: %v)",
+			deploymentID, svc.ClusterIP, svc.Port, svc.PooledConnection)
+	}
 	return svc, true, nil
 }
 
@@ -356,6 +359,10 @@ func (p *PostgresProxy) parseStartupMessage(conn net.Conn) (*StartupParameters, 
 }
 
 func (p *PostgresProxy) printStartupInfo(params *StartupParameters) {
+	if os.Getenv("MODE") != "production" {
+		return
+	}
+
 	log.Printf("=== PostgreSQL Connection Info ===")
 
 	// Print main connection parameters

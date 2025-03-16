@@ -25,8 +25,8 @@ fi
 echo "Deploying test environment..."
 minikube kubectl -p local-test -- kustomize kubernetes/overlays/test | minikube kubectl -p local-test -- apply -f - -n test
 
-echo "Waiting for deployment to be ready..."
-minikube kubectl -p local-test -- rollout status deployment/xdatabase-proxy -n test
+echo "Waiting for daemonset to be ready..."
+minikube kubectl -p local-test -- rollout status daemonset/xdatabase-proxy -n test
 
 echo "Running tests..."
 # Add your test commands here
@@ -38,3 +38,22 @@ echo "Running tests..."
 
 echo "Setup complete! Your test environment is ready."
 echo "To access the proxy service, run: minikube kubectl -p local-test -- port-forward svc/xdatabase-proxy 3001:3001 -n test"
+
+# create hello-world-namesapce-app namespace
+if minikube kubectl -p local-test -- get namespace hello-world-namesapce-app >/dev/null 2>&1; then
+    echo "Namespace hello-world-namesapce-app already exists"
+else
+    echo "Creating namespace hello-world-namesapce-app"
+    minikube kubectl -p local-test -- create namespace hello-world-namesapce-app --dry-run=client -o yaml | minikube kubectl -p local-test -- apply -f -
+fi
+
+# deploy test postgresql
+minikube kubectl -p local-test -- kustomize kubernetes/postgresql | minikube kubectl -p local-test -- apply -f - -n hello-world-namesapce-app
+
+# deploy test postgresql service
+minikube kubectl -p local-test -- kustomize kubernetes/postgresql | minikube kubectl -p local-test -- apply -f - -n hello-world-namesapce-app
+
+# Creating tunnel to hello-world-namesapce-app
+# minikube tunnel --bind-address=192.168.1.225 -p local-test
+
+minikube kubectl -p local-test -- port-forward daemonset/xdatabase-proxy 1881:1881 -n test
