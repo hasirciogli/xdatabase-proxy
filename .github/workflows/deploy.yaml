@@ -86,25 +86,10 @@ jobs:
           username: hasirciogli
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/hasirciogli/xdatabase-proxy
-          tags: |
-            type=raw,value=latest-test,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      - name: Build test image
+        run: |
+          docker build -t ghcr.io/hasirciogli/xdatabase-proxy:latest-test .
+          docker push ghcr.io/hasirciogli/xdatabase-proxy:latest-test
 
   create-release:
     needs: build-and-push
