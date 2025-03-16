@@ -8,8 +8,8 @@ resources:
 
 patches:
   - path: replicas-patch.yaml
+  - path: test-image-patch.yaml
   # - path: override-rbac.yaml
-  # - path: test-image-patch.yaml
 # configMapGenerator:
 #   - name: xdatabase-proxy-config
 #     behavior: merge

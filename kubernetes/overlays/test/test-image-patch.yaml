@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: xdatabase-proxy
-          image: xdatabase-proxy-local-test:latest
+          image: ghcr.io/hasirciogli/xdatabase-proxy:latest-test
