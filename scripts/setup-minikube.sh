@@ -32,4 +32,4 @@ echo "Running tests..."
 # pkill -f "port-forward"
 
 echo "Setup complete! Your test environment is ready."
-echo "To access the proxy service, run: kubectl -n test port-forward svc/xdatabase-proxy 3001:3001" 
+echo "To access the proxy service, run: kubectl -n test port-forward svc/xdatabase-proxy 3001:3001"
