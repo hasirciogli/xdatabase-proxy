@@ -7,4 +7,4 @@ resources:
   - ../../base
 
 patches:
-  - path: replicas-patch.yaml
+  # - path: replicas-patch.yaml
