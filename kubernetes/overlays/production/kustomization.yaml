@@ -8,6 +8,3 @@ resources:
 
 patches:
   - path: replicas-patch.yaml
-# configMapGenerator:
-#   - name: xdatabase-proxy-config
-#     behavior: merge

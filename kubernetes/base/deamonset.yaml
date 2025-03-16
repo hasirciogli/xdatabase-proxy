@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: xdatabase-proxy
 spec:
@@ -17,6 +17,7 @@ spec:
           image: ghcr.io/hasirciogli/xdatabase-proxy:latest
           ports:
             - containerPort: 1881
+              hostPort: 1881
               name: proxy-port
           resources:
             requests:

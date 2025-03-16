@@ -3,6 +3,6 @@ kind: Kustomization
 
 resources:
   - 001-rbac.yaml
-  - deployment.yaml
+  - deamonset.yaml
   - service.yaml
 # - configmap.yaml
