@@ -2,8 +2,6 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -11,7 +9,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/hasirciogli/xdatabase-proxy/pkg/kubernetes"
+	"github.com/hasirciogli/xdatabase-proxy/pkg/postgresql"
 )
 
 var (
@@ -58,33 +56,12 @@ func main() {
 	// Setup health check endpoints (!!!CURRENTLY NOT USED!!!)
 	setupHealthChecks()
 
-	// Create a new Kubernetes client with specific context
-	contextName := os.Getenv("KUBE_CONTEXT")
-	if contextName == "" {
-		contextName = "local-test"
-	}
-
-	k8sClient, err := kubernetes.NewK8sClient(contextName)
+	proxy, err := postgresql.NewPostgresProxy(1881, "local-test")
 	if err != nil {
-		log.Fatalf("Failed to create Kubernetes client: %v", err)
-	}
-	defer k8sClient.Stop()
-
-	fmt.Printf("Using Kubernetes context: %s\n", contextName)
-
-	// Start watching for services
-	if err := k8sClient.WatchDatabaseServices(context.Background(), func(services []kubernetes.ServiceInfo) {
-		for _, svc := range services {
-			log.Printf("Service Info: Name=%s, Namespace=%s, DB Type=%s, PooledConnection=%v, ClusterDNS=%s",
-				svc.Name, svc.Namespace, svc.DatabaseType, svc.PooledConnection, svc.ClusterDNS)
-		}
-		// Mark as ready once we've successfully started watching services
-		isReady.Store(true)
-	}); err != nil {
-		log.Fatalf("Failed to start watching: %v", err)
+		log.Fatalf("Failed to create PostgreSQL proxy: %v", err)
 	}
 
-	fmt.Println("Watching for services...")
+	go proxy.Start(1881)
 
 	// Wait for termination signal
 	sigChan := make(chan os.Signal, 1)
