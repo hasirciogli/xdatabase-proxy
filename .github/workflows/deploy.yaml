@@ -92,11 +92,11 @@ jobs:
         with:
           images: ghcr.io/hasirciogli/xdatabase-proxy
           tags: |
+            type=raw,value=latest-test,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}.{{minor}}-test
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -105,7 +105,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          target: latest-test
 
   create-release:
     needs: build-and-push
