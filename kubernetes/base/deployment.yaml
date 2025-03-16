@@ -28,7 +28,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: proxy-port
+              port: 80
               scheme: HTTP
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -38,7 +38,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /ready
-              port: proxy-port
+              port: 80
               scheme: HTTP
             initialDelaySeconds: 5
             periodSeconds: 10
