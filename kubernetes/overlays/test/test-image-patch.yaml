@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xdatabase-proxy
+spec:
+  template:
+    spec:
+      containers:
+        - name: xdatabase-proxy
+          image: xdatabase-proxy-local-test:latest

@@ -11,6 +11,7 @@ spec:
       labels:
         app: xdatabase-proxy
     spec:
+      serviceAccountName: xdatabase-proxy-sa
       containers:
         - name: xdatabase-proxy
           image: ghcr.io/hasirciogli/xdatabase-proxy:latest
@@ -24,13 +25,28 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: proxy-port
+            failureThreshold: 30
+            periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: proxy-port
-            initialDelaySeconds: 5
-            periodSeconds: 10
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /ready
               port: proxy-port
+              scheme: HTTP
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1

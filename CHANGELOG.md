@@ -24,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.0.1] - 2025-03-16
+
+### Added
+
+- Kubernetes RBAC configuration
+- Health check endpoints
+- Startup probe
+- Liveness probe
+- Readiness probe
+
+### Changed
+
+- Minikube test environment setup
+- Health check endpoints (!!!CURRENTLY NOT USED!!!)
+- Minikube RBAC configuration
+
 ## [1.0.0] - 2025-03-15
 
 ### Added

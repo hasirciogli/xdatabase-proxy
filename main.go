@@ -5,43 +5,61 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/hasirciogli/xdatabase-proxy/pkg/kubernetes"
 )
 
-// func main() {
-// 	// Create proxies
-// 	postgresProxy := postgresql.NewPostgresProxy(3001, "localhost", 5432)
-// 	mysqlProxy := mysql.NewMySQLProxy(3002, "localhost", 3306)
-// 	mongoProxy := mongodb.NewMongoDBProxy(3003, "localhost", 27017)
+var (
+	isReady   atomic.Bool
+	isHealthy atomic.Bool
+)
 
-// 	// Start PostgreSQL proxy
-// 	go func() {
-// 		if err := postgresProxy.Start(postgresProxy.ListenPort); err != nil {
-// 			log.Printf("PostgreSQL proxy error: %v", err)
-// 		}
-// 	}()
+func setupHealthChecks() {
+	// Set initial state
+	isHealthy.Store(true)
+	isReady.Store(true)
 
-// 	// Start MySQL proxy
-// 	go func() {
-// 		if err := mysqlProxy.Start(mysqlProxy.ListenPort); err != nil {
-// 			log.Printf("MySQL proxy error: %v", err)
-// 		}
-// 	}()
+	// Health check endpoint
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if isHealthy.Load() {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("healthy"))
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("unhealthy"))
+	})
 
-// 	// Start MongoDB proxy
-// 	if err := mongoProxy.Start(mongoProxy.ListenPort); err != nil {
-// 		log.Printf("MongoDB proxy error: %v", err)
-// 	}
-// }
+	// Readiness check endpoint
+	http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+		if isReady.Load() {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("ready"))
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("not ready"))
+	})
 
-// sadece postgres proxy
+	// Start HTTP server for health checks
+	go func() {
+		if err := http.ListenAndServe(":80", nil); err != nil {
+			log.Printf("Health check server error: %v", err)
+		}
+	}()
+}
+
 func main() {
+	// Setup health check endpoints (!!!CURRENTLY NOT USED!!!)
+	setupHealthChecks()
+
 	// Create a new Kubernetes client with specific context
-	contextName := os.Getenv("KUBE_CONTEXT") // Take context name from environment variable
+	contextName := os.Getenv("KUBE_CONTEXT")
 	if contextName == "" {
 		contextName = "local-test"
 	}
@@ -60,6 +78,8 @@ func main() {
 			log.Printf("Service Info: Name=%s, Namespace=%s, DB Type=%s, PooledConnection=%v, ClusterDNS=%s",
 				svc.Name, svc.Namespace, svc.DatabaseType, svc.PooledConnection, svc.ClusterDNS)
 		}
+		// Mark as ready once we've successfully started watching services
+		isReady.Store(true)
 	}); err != nil {
 		log.Fatalf("Failed to start watching: %v", err)
 	}
@@ -70,6 +90,10 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
+
+	// Mark as not ready and unhealthy during shutdown
+	isReady.Store(false)
+	isHealthy.Store(false)
 
 	log.Println("Shutting down...")
 }
