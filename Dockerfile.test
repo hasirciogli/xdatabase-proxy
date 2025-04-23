@@ -1,0 +1,12 @@
+FROM --platform=linux/arm64 alpine:latest
+
+WORKDIR /app
+
+# Copy the locally built binary
+COPY xdatabase-proxy .
+
+# Expose the port
+EXPOSE 1881
+
+# Run the binary
+CMD ["./xdatabase-proxy"]

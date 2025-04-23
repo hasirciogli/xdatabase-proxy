@@ -275,3 +275,24 @@ func (k *K8sClient) WatchDatabaseServices(ctx context.Context, callback func([]S
 
 	return nil
 }
+
+func (k *K8sClient) GetSecret(namespace string, name string) (*corev1.Secret, error) {
+	return k.clientset.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
+}
+
+func (k *K8sClient) UpsertSecret(namespace string, name string, data map[string][]byte) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: data,
+	}
+
+	_, err := k.clientset.CoreV1().Secrets(namespace).Create(context.Background(), secret, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to create secret: %v", err)
+	}
+
+	return nil
+}

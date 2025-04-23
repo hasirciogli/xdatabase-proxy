@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: xdatabase-proxy
+spec:
+  template:
+    spec:
+      containers:
+        - name: xdatabase-proxy
+          image: ghcr.io/hasirciogli/xdatabase-proxy-local-test:latest
+          imagePullPolicy: Never
+          env:
+            - name: NAMESPACE
+              value: test

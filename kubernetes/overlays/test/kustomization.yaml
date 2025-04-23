@@ -7,4 +7,4 @@ resources:
   - ../../base
 
 patches:
-  - path: test-image-patch.yaml
+  - path: database-patch.yaml

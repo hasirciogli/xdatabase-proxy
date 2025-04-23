@@ -10,9 +10,12 @@ else
     minikube start --memory=4096 --cpus=2 -p local-test
 fi
 
-# echo "Building Docker image..."
-# eval $(minikube docker-env -p local-test)
-# docker build -t xdatabase-proxy-local-test:latest .
+echo "Building xdatabase-proxy..."
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o xdatabase-proxy
+
+echo "Building Docker image..."
+eval $(minikube docker-env -p local-test)
+docker build -f Dockerfile.test -t ghcr.io/hasirciogli/xdatabase-proxy-local-test:latest .
 
 echo "Creating namespaces if not exists..."
 if minikube kubectl -p local-test -- get namespace test >/dev/null 2>&1; then
@@ -28,13 +31,11 @@ minikube kubectl -p local-test -- kustomize kubernetes/overlays/test | minikube 
 echo "Waiting for daemonset to be ready..."
 minikube kubectl -p local-test -- rollout status daemonset/xdatabase-proxy -n test
 
-echo "Running tests..."
-# Add your test commands here
-# Example:
-# kubectl -n test port-forward svc/xdatabase-proxy 3001:3001 &
-# sleep 5
-# curl http://localhost:3001/health
-# pkill -f "port-forward"
+echo "Restarting daemonset..."
+minikube kubectl -p local-test -- rollout restart daemonset/xdatabase-proxy -n test
+
+echo "Waiting for daemonset to be ready..."
+minikube kubectl -p local-test -- rollout status daemonset/xdatabase-proxy -n test
 
 echo "Setup complete! Your test environment is ready."
 echo "To access the proxy service, run: minikube kubectl -p local-test -- port-forward svc/xdatabase-proxy 3001:3001 -n test"
@@ -55,5 +56,4 @@ minikube kubectl -p local-test -- kustomize kubernetes/postgresql | minikube kub
 
 # Creating tunnel to hello-world-namesapce-app
 # minikube tunnel --bind-address=192.168.1.225 -p local-test
-
 minikube kubectl -p local-test -- port-forward daemonset/xdatabase-proxy 1881:1881 -n test

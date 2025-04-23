@@ -56,12 +56,12 @@ func main() {
 	// Setup health check endpoints (!!!CURRENTLY NOT USED!!!)
 	setupHealthChecks()
 
-	proxy, err := postgresql.NewPostgresProxy(1881, "local-test")
+	proxy, err := postgresql.NewPostgresProxy("local-test")
 	if err != nil {
 		log.Fatalf("Failed to create PostgreSQL proxy: %v", err)
 	}
 
-	go proxy.Start(1881)
+	go proxy.Start(1881, "", "")
 
 	// Wait for termination signal
 	sigChan := make(chan os.Signal, 1)
