@@ -1,0 +1,11 @@
+build/
+dist/
+node_modules/
+.env.*
+!.env.local
+
+# Ignore all files in the build directory
+build/
+
+# Ignore all files in the dist directory
+dist/
