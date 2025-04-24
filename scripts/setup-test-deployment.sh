@@ -11,7 +11,7 @@ else
 fi
 
 echo "Building xdatabase-proxy..."
-CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o xdatabase-proxy
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/xdatabase-proxy apps/proxy/main.go
 
 echo "Building Docker image..."
 eval $(minikube docker-env -p local-test)
@@ -27,9 +27,6 @@ fi
 
 echo "Deploying test environment..."
 minikube kubectl -p local-test -- kustomize kubernetes/overlays/test | minikube kubectl -p local-test -- apply -f - -n test
-
-echo "Waiting for daemonset to be ready..."
-minikube kubectl -p local-test -- rollout status daemonset/xdatabase-proxy -n test
 
 echo "Restarting daemonset..."
 minikube kubectl -p local-test -- rollout restart daemonset/xdatabase-proxy -n test

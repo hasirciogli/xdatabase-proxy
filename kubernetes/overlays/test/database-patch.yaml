@@ -12,3 +12,7 @@ spec:
           env:
             - name: NAMESPACE
               value: test
+            - name: POSTGRESQL_PROXY_ENABLED
+              value: "true"
+            - name: POSTGRESQL_PROXY_START_PORT
+              value: "1881"

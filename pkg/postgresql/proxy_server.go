@@ -204,7 +204,7 @@ func (p *PostgresProxy) sendErrorResponse(conn net.Conn, errResp *ErrorResponse)
 }
 
 // generateSelfSignedCert generates a self-signed certificate and key pair
-func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
+func generateSelfSignedCert(p *PostgresProxy) (certPEM, keyPEM []byte, err error) {
 	// Generate RSA private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -245,23 +245,57 @@ func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
 
+	// Sertifika ve anahtarı kubernetese'ye kaydet
+	err = p.k8sClient.UpsertSecret(os.Getenv("NAMESPACE"), "self-signed-cert", map[string][]byte{
+		"tls.crt": certPEM,
+		"tls.key": keyPEM,
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create secret: %v", err)
+	}
 	return certPEM, keyPEM, nil
 }
 
 func getSelfCertsFromK8s(p *PostgresProxy) (certPEM, keyPEM []byte, err error) {
-	// Get the secret from Kubernetes
+	// Kubernetes'ten sertifikayı almaya çalış
 	secret, err := p.k8sClient.GetSecret(os.Getenv("NAMESPACE"), "self-signed-cert")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get self-signed certificate: %v", err)
+		// Sertifika bulunamadıysa, yeni bir tane oluştur
+		log.Printf("Kubernetes'te sertifika bulunamadı, yeni bir tane oluşturuluyor: %v", err)
+		return generateSelfSignedCert(p)
 	}
+
+	// Sertifika ve anahtarı al
 	certPEM = secret.Data["tls.crt"]
 	keyPEM = secret.Data["tls.key"]
+
+	// Sertifikanın geçerlilik süresini kontrol et
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		log.Printf("Geçersiz sertifika formatı, yeni bir tane oluşturuluyor")
+		return generateSelfSignedCert(p)
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		log.Printf("Sertifika ayrıştırılamadı, yeni bir tane oluşturuluyor: %v", err)
+		return generateSelfSignedCert(p)
+	}
+
+	// Sertifikanın son kullanma tarihini kontrol et
+	if time.Now().After(cert.NotAfter) || time.Now().Before(cert.NotBefore) {
+		log.Printf("Sertifika süresi dolmuş veya henüz geçerli değil, yeni bir tane oluşturuluyor")
+		return generateSelfSignedCert(p)
+	}
+
 	return certPEM, keyPEM, nil
 }
 
 // Start initiates the proxy listener. Always starts a plain TCP listener.
 // If certFile and keyFile are provided, TLS capability is enabled for connections that request it.
-// If no cert files are provided, a self-signed certificate will be automatically generated.
+// If no cert files are provided, a self-signed certificate will be automatically generated and
+// stored in Kubernetes (not written to local disk).
 func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 	listenAddr := fmt.Sprintf(":%d", port)
 
@@ -282,30 +316,16 @@ func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 		}
 		log.Printf("TLS capability enabled using cert: %s, key: %s", certFile, keyFile)
 	} else {
-		// Generate self-signed certificate
+		// Get or generate self-signed certificate from/to Kubernetes
 		certPEM, keyPEM, err := getSelfCertsFromK8s(p)
 		if err != nil {
 			return fmt.Errorf("failed to get self-signed certificate: %v", err)
 		}
 
-		// Create temporary files for the certificate and key
-		certFile = "proxy_cert.pem"
-		keyFile = "proxy_key.pem"
-
-		if err := os.WriteFile(certFile, certPEM, 0644); err != nil {
-			return fmt.Errorf("failed to write certificate file: %v", err)
-		}
-		if err := os.WriteFile(keyFile, keyPEM, 0600); err != nil {
-			os.Remove(certFile) // Clean up cert file if key file creation fails
-			return fmt.Errorf("failed to write key file: %v", err)
-		}
-
-		// Load the generated certificate
-		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		// Load certificate directly from memory instead of writing to files
+		cert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
-			os.Remove(certFile)
-			os.Remove(keyFile)
-			return fmt.Errorf("error loading generated TLS key pair: %v", err)
+			return fmt.Errorf("error creating TLS key pair from PEM data: %v", err)
 		}
 
 		p.tlsConfig = &tls.Config{
@@ -317,7 +337,7 @@ func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 			// Add more hostnames to the certificate
 			ServerName: "localhost",
 		}
-		log.Printf("TLS capability enabled using auto-generated self-signed certificate")
+		log.Printf("TLS capability enabled using auto-generated self-signed certificate stored in Kubernetes")
 	}
 
 	// HER ZAMAN plain TCP listener başlatılır

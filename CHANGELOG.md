@@ -9,11 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial project setup
-- Kubernetes deployment configurations
-- GitHub Actions workflow for automated deployments
-- Minikube test environment setup
-
 ### Changed
 
 ### Deprecated
@@ -23,6 +18,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [1.0.3] - 2025-04-24
+
+### Added
+
+- Enhanced tool-agnostic proxy behavior (supports any connection pooler, not just pgbouncer)
+- Updated README with comprehensive documentation about label-based routing
+- Dynamic namespace support through environment variables
+- Port-forwarding integrated in test scripts for easier local testing
+- Automatic service discovery for labeled Kubernetes services
+
+### Changed
+
+- Improved TLS/SSL certificate management: certificates now only stored in Kubernetes, not in local filesystem
+- Directly loading certificates from memory instead of temporary files, improving security and performance
+- Updated Go version to 1.23.4 in Dockerfile
+- Enhanced Kubernetes integration with automatic secret management
+- Optimized health check endpoints with atomic state management
+- Improved resource utilization in proxy connections
+
+### Security
+
+- Eliminated local file system access for SSL certificates
+- Certificates are now stored and retrieved exclusively from Kubernetes secrets
+- Memory-only certificate handling reduces security exposure
+- Improved TLS handshake error handling with better error messages
+- Environment-based configuration to prevent hardcoded secrets
+
+### Fixed
+
+- Resolved potential memory leaks in connection handling
+- Fixed certificate renewal logic when certificates expire
+- Improved connection cleanup on proxy shutdown
+- Better error handling for malformed PostgreSQL protocol messages
 
 ## [1.0.2] - 2025-03-16
 

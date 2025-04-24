@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN go build -o main main.go
+RUN go build -o main apps/proxy/main.go
 
 
 FROM alpine:latest as runner
@@ -12,7 +12,5 @@ FROM alpine:latest as runner
 WORKDIR /app
 
 COPY --from=builder /app/main /app/main
-
-EXPOSE 1881
 
 CMD ["./main"]
