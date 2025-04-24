@@ -89,26 +89,68 @@ func (p *PostgresProxy) updateServices(services []kubernetes.ServiceInfo) {
 	p.servicesMu.Lock()
 	defer p.servicesMu.Unlock()
 	p.services = services
-	// Loglama sadeleştirildi
-	log.Printf("Updated services: %d services found.", len(services))
+	// Gereksiz detaylı log kaldırıldı
 }
 
 func (p *PostgresProxy) findService(deploymentID string, usePool bool) (*kubernetes.ServiceInfo, bool) {
 	p.servicesMu.RLock()
 	defer p.servicesMu.RUnlock()
+
 	var fallbackService *kubernetes.ServiceInfo
+	var matchingServices []*kubernetes.ServiceInfo
+
+	// İlk taramada uygun servisleri topla
 	for i := range p.services {
 		svc := &p.services[i]
 		if svc.DeploymentID == deploymentID {
 			if svc.PooledConnection == usePool {
-				return svc, true
+				matchingServices = append(matchingServices, svc)
 			}
-			fallbackService = svc
+			// Her durumda bir fallback servisi sakla
+			if fallbackService == nil {
+				fallbackService = svc
+			}
 		}
 	}
+
+	// Eğer birden fazla eşleşen servis bulunduysa, uyarı logla
+	if len(matchingServices) > 1 {
+		poolStatus := "unpooled"
+		if usePool {
+			poolStatus = "pooled"
+		}
+
+		serviceNames := make([]string, len(matchingServices))
+		for i, svc := range matchingServices {
+			serviceNames[i] = fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
+		}
+
+		log.Printf("WARNING: Multiple %s services found for deployment '%s': %s - using first one: %s/%s",
+			poolStatus, deploymentID, strings.Join(serviceNames, ", "),
+			matchingServices[0].Namespace, matchingServices[0].Name)
+
+		return matchingServices[0], true
+	}
+
+	// Tam olarak bir eşleşen servis bulunduysa
+	if len(matchingServices) == 1 {
+		return matchingServices[0], true
+	}
+
+	// Eşleşen servis bulunamadı, fallback varsa onu kullan
 	if fallbackService != nil {
+		poolStatus := "pooled"
+		if !usePool {
+			poolStatus = "unpooled"
+		}
+
+		log.Printf("No exact %s service match for deployment '%s', using fallback service: %s/%s (pooled: %v)",
+			poolStatus, deploymentID,
+			fallbackService.Namespace, fallbackService.Name, fallbackService.PooledConnection)
 		return fallbackService, true
 	}
+
+	// Hiçbir uygun servis bulunamadı
 	return nil, false
 }
 
@@ -299,53 +341,43 @@ func getSelfCertsFromK8s(p *PostgresProxy) (certPEM, keyPEM []byte, err error) {
 func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 	listenAddr := fmt.Sprintf(":%d", port)
 
-	// TLS yapılandırmasını yükle (eğer sertifika dosyaları verilmişse)
 	if certFile != "" && keyFile != "" {
 		cert, errLoad := tls.LoadX509KeyPair(certFile, keyFile)
 		if errLoad != nil {
 			return fmt.Errorf("error loading TLS key pair from %s and %s: %v", certFile, keyFile, errLoad)
 		}
 		p.tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			// MinVersion:   tls.VersionTLS12, // Temporarily remove for debugging
-			// Add more permissive settings
-			InsecureSkipVerify: true,             // Allow self-signed certificates
-			ClientAuth:         tls.NoClientCert, // Don't require client certificates
-			// Add more hostnames to the certificate
-			ServerName: "localhost",
+			Certificates:       []tls.Certificate{cert},
+			InsecureSkipVerify: true,
+			ClientAuth:         tls.NoClientCert,
+			ServerName:         "localhost",
 		}
-		log.Printf("TLS capability enabled using cert: %s, key: %s", certFile, keyFile)
+		log.Printf("TLS enabled with certificate files")
 	} else {
-		// Get or generate self-signed certificate from/to Kubernetes
 		certPEM, keyPEM, err := getSelfCertsFromK8s(p)
 		if err != nil {
 			return fmt.Errorf("failed to get self-signed certificate: %v", err)
 		}
 
-		// Load certificate directly from memory instead of writing to files
 		cert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
 			return fmt.Errorf("error creating TLS key pair from PEM data: %v", err)
 		}
 
 		p.tlsConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			// MinVersion:   tls.VersionTLS12, // Temporarily remove for debugging
-			// Add more permissive settings
-			InsecureSkipVerify: true,             // Allow self-signed certificates
-			ClientAuth:         tls.NoClientCert, // Don't require client certificates
-			// Add more hostnames to the certificate
-			ServerName: "localhost",
+			Certificates:       []tls.Certificate{cert},
+			InsecureSkipVerify: true,
+			ClientAuth:         tls.NoClientCert,
+			ServerName:         "localhost",
 		}
-		log.Printf("TLS capability enabled using auto-generated self-signed certificate stored in Kubernetes")
+		log.Printf("TLS enabled with auto-generated certificate")
 	}
 
-	// HER ZAMAN plain TCP listener başlatılır
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return fmt.Errorf("error starting TCP listener on %s: %v", listenAddr, err)
 	}
-	log.Printf("PostgreSQL proxy listening for TCP connections on %s (TLS auto-negotiation)", listenAddr)
+	log.Printf("PostgreSQL proxy listening on %s", listenAddr)
 
 	defer listener.Close()
 
@@ -355,150 +387,116 @@ func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 			select {
 			case <-p.ctx.Done():
 				log.Println("Listener stopped.")
-				return nil // Context iptal edildi, normal duruş
+				return nil
 			default:
-				// Listener hatası (örn. çok fazla dosya açık)
 				log.Printf("Error accepting connection: %v", err)
-				// Bu tür hatalar genellikle geçici değildir, belki kısa bir süre bekleyip tekrar denemek veya çıkmak gerekebilir.
-				// Şimdilik devam ediyoruz.
 				continue
 			}
 		}
-		// Her bağlantıyı ayrı goroutine'de işle
 		go p.HandleConnection(conn)
 	}
 }
 
 // HandleConnection processes an incoming client connection, determining if TLS is needed.
 func (p *PostgresProxy) HandleConnection(initialConn net.Conn) {
-	defer initialConn.Close() // En başta defer et, her durumda kapanmasını sağla
+	defer initialConn.Close()
 
-	remoteAddr := initialConn.RemoteAddr().String()
-	log.Printf("Handling new connection from %s", remoteAddr)
+	// Gereksiz "Handling new connection" log kaldırıldı
 
-	// --- İlk Mesajı Oku ve TLS Gerekip Gerekmediğini Belirle ---
-	// İlk 8 byte'ı okuyarak SSLRequest mi yoksa StartupMessage mı olduğunu anla
 	initialBytes := make([]byte, 8)
 	_, err := io.ReadFull(initialConn, initialBytes)
 	if err != nil {
-		// Bağlantı 8 byte gönderemeden kapandıysa veya başka bir okuma hatası varsa
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			log.Printf("Connection from %s closed prematurely (before initial 8 bytes): %v", remoteAddr, err)
+			log.Printf("Connection closed prematurely: %v", err)
 		} else {
-			log.Printf("Error reading initial 8 bytes from %s: %v", remoteAddr, err)
+			log.Printf("Error reading initial bytes: %v", err)
 		}
-		return // Hata durumunda işlemi bitir
+		return
 	}
-	// n == 8 olmalı, ReadFull bunu garantiler (hata yoksa)
 
 	length := binary.BigEndian.Uint32(initialBytes[0:4])
 	requestCode := binary.BigEndian.Uint32(initialBytes[4:8])
 
-	var conn net.Conn = initialConn    // Mevcut bağlantıyı tutacak değişken, TLS olursa güncellenecek
-	var startupMessageReader io.Reader // Startup mesajını okumak için kullanılacak reader
+	var conn net.Conn = initialConn
+	var startupMessageReader io.Reader
 
-	// --- Karar Verme Mekanizması ---
 	if length == 8 && requestCode == sslRequestCode {
-		// 1. SSLRequest Geldi
-		log.Printf("Received SSLRequest from %s", remoteAddr)
+		// Gereksiz "Received SSLRequest" log kaldırıldı
 		if p.tlsConfig != nil {
-			// TLS destekleniyor, 'S' gönder
 			if _, err := conn.Write([]byte{'S'}); err != nil {
-				log.Printf("Error sending 'S' (SSL Supported) to %s: %v", remoteAddr, err)
+				log.Printf("Error sending SSL response: %v", err)
 				return
 			}
-			// TLS Handshake'i yap
-			log.Printf("Performing TLS handshake with %s...", remoteAddr)
-			// Log the ServerName being used
-			log.Printf("Using tls.Config with ServerName: %s", p.tlsConfig.ServerName)
+			// Gereksiz "Performing TLS handshake" log kaldırıldı
+			// Gereksiz "Using tls.Config with ServerName" log kaldırıldı
 			tlsConn := tls.Server(conn, p.tlsConfig)
 			if err := tlsConn.Handshake(); err != nil {
-				log.Printf("TLS handshake with %s failed: %v", remoteAddr, err)
-				// Try to send error response before closing
+				log.Printf("TLS handshake failed: %v", err)
 				_ = p.sendErrorResponse(conn, &ErrorResponse{
 					Severity: "FATAL",
-					Code:     "08006", // connection_failure
+					Code:     "08006",
 					Message:  fmt.Sprintf("TLS handshake failed: %v", err),
 				})
 				return
 			}
-			log.Printf("TLS handshake with %s successful.", remoteAddr)
-			conn = tlsConn // Bağlantıyı TLS bağlantısıyla güncelle
-			// Startup mesajı artık bu güvenli bağlantıdan okunacak
+			// Gereksiz "TLS handshake successful" log kaldırıldı
+			conn = tlsConn
 			startupMessageReader = conn
 		} else {
-			// TLS desteklenmiyor, 'N' gönder ve bağlantıyı kapat
-			log.Printf("TLS is not configured. Sending 'N' (SSL Not Supported) to %s.", remoteAddr)
-			_, _ = conn.Write([]byte{'N'}) // Hata olsa da loglayıp devam et (kapatılacak)
-			return                         // Bağlantıyı kapat
+			// Gereksiz "TLS is not configured" log kaldırıldı
+			_, _ = conn.Write([]byte{'N'})
+			return
 		}
 	} else {
-		// 2. SSLRequest DEĞİL (StartupMessage veya CancelRequest olmalı)
-		log.Printf("No SSLRequest received from %s, assuming plaintext or CancelRequest.", remoteAddr)
-		// Okunan ilk 8 byte, mesajın başlangıcıdır. Geri kalanını da okuyabilmek için
-		// bu 8 byte'ı bir buffer'a koyup, geri kalanını normal bağlantıdan okuyacak
-		// bir reader oluşturuyoruz.
+		// Gereksiz "No SSLRequest received" log kaldırıldı
 		remainingLength := 0
 		if length > 8 {
 			remainingLength = int(length) - 8
 		} else if length == 8 && requestCode == cancelRequestCode {
-			// Bu bir CancelRequest olabilir, henüz tam desteklenmiyor.
-			log.Printf("Received possible CancelRequest (length=8, code=%d) from %s. Closing connection.", cancelRequestCode, remoteAddr)
-			// TODO: CancelRequest işleme eklenebilir (backend process ID ve secret key gerektirir)
+			// Gereksiz "Received possible CancelRequest" log kaldırıldı
 			return
 		} else if length < 8 {
-			log.Printf("Invalid message length %d received from %s. Closing connection.", length, remoteAddr)
+			log.Printf("Invalid message length: %d", length)
 			return
 		}
-		// else: length == 8 ama CancelRequest değilse bu da hatalı bir durumdur.
 
-		// Okunan ilk 8 byte ile geri kalanını birleştirecek reader
 		fullMessageReader := io.MultiReader(
-			bytes.NewReader(initialBytes),                // Önce okunan 8 byte
-			io.LimitReader(conn, int64(remainingLength)), // Sonra geri kalan kısım
+			bytes.NewReader(initialBytes),
+			io.LimitReader(conn, int64(remainingLength)),
 		)
 		startupMessageReader = fullMessageReader
-		// conn değişkeni initialConn (plaintext) olarak kalır.
 	}
 
-	// --- TLS Handshake Sonrası veya Plaintext Durumunda Startup Mesajını İşle ---
-	log.Printf("Proceeding to parse StartupMessage from %s (TLS: %v)", remoteAddr, conn != initialConn)
-	startupMsg, err := p.parseStartupMessage(startupMessageReader) // Artık reader'dan okuyoruz
+	// Gereksiz "Proceeding to parse StartupMessage" log kaldırıldı
+	startupMsg, err := p.parseStartupMessage(startupMessageReader)
 	if err != nil {
-		log.Printf("Error parsing startup message from %s: %v", remoteAddr, err)
-		// Hata yanıtı göndermeyi deneyebiliriz, ancak protokolün hangi aşamasında olduğumuza bağlı
-		// _ = p.sendErrorResponse(conn, &ErrorResponse{Severity: "FATAL", Code: "08P01", Message: "bad startup packet"})
+		log.Printf("Error parsing startup message: %v", err)
 		return
 	}
 
-	// Bağlantı bilgilerini her zaman logla
+	// Gereksiz detaylı startup bilgisi loglaması
 	p.printStartupInfo(startupMsg)
 
-	// Kullanıcı adını doğrula/değiştir ve hedef servisi bul
 	svc, ok, errResp := p.validateAndModifyUsername(startupMsg)
 	if !ok {
-		log.Printf("Username validation failed for %s: %s", remoteAddr, errResp.Message)
+		log.Printf("Username validation failed: %s", errResp.Message)
 		if sendErr := p.sendErrorResponse(conn, errResp); sendErr != nil {
-			log.Printf("Error sending validation error response to %s: %v", remoteAddr, sendErr)
+			log.Printf("Error sending validation error response: %v", sendErr)
 		}
-		return // Hata sonrası bağlantıyı kapat
+		return
 	}
 
-	// Bağlantıyı hedef PostgreSQL sunucusuna ilet (Backend HER ZAMAN plaintext)
-	// forwardConnection'a geçen 'conn', TLS ise tls.Conn, değilse net.Conn olur.
-	// Ancak forwardConnection içindeki io.Copy bunu transparan olarak halleder.
 	if err := p.forwardConnection(conn, startupMsg, svc); err != nil {
-		log.Printf("Error forwarding connection from %s to %s:%d: %v", remoteAddr, svc.ClusterIP, svc.Port, err)
-		// İletme hatası durumunda istemciye generic bir hata gönderelim
+		log.Printf("Error forwarding connection: %v", err)
 		_ = p.sendErrorResponse(conn, &ErrorResponse{
 			Severity: "FATAL",
-			Code:     "08001", // sqlclient_unable_to_establish_sqlconnection
+			Code:     "08001",
 			Message:  fmt.Sprintf("failed to connect to backend service %s/%s: %v", svc.Namespace, svc.Name, err),
 		})
 		return
 	}
 
-	log.Printf("Connection handling finished for %s", remoteAddr)
+	// Gereksiz "Connection handling finished" log kaldırıldı
 }
 
 // parseStartupMessage reads and parses the PostgreSQL startup message from the given reader.
@@ -587,41 +585,16 @@ func (p *PostgresProxy) parseStartupMessage(r io.Reader) (*StartupParameters, er
 }
 
 func (p *PostgresProxy) printStartupInfo(params *StartupParameters) {
-	// Bu fonksiyon aynı kalabilir
-	log.Printf("=== PostgreSQL Connection Info (Proto: %d) ===", params.ProtocolVersion)
+	// Tüm detaylı loglamalar kaldırıldı, sadece kritik bilgiler korundu
 	if user, ok := params.Parameters["user"]; ok {
-		log.Printf("  → Raw Username: %s", user) // Henüz değiştirilmemiş olabilir
+		log.Printf("Connection requested by user: %s", user)
 	}
-	if db, ok := params.Parameters["database"]; ok {
-		log.Printf("  → Database: %s", db)
-	}
-	if app, ok := params.Parameters["application_name"]; ok {
-		log.Printf("  → Application: %s", app)
-	}
-	// SSL/TLS durumunu göster
-	if ssl, ok := params.Parameters["sslmode"]; ok {
-		log.Printf("  → SSL Mode: %s", ssl)
-	} else {
-		log.Printf("  → SSL Mode: disabled (plain text)")
-	}
-	var otherParams []string
-	for key, value := range params.Parameters {
-		if key == "user" || key == "database" || key == "application_name" || key == "sslmode" {
-			continue
-		}
-		otherParams = append(otherParams, fmt.Sprintf("%s=%s", key, value))
-	}
-	if len(otherParams) > 0 {
-		log.Printf("  → Other Params: %s", strings.Join(otherParams, ", "))
-	}
-	log.Printf("============================================")
 }
 
 // forwardConnection establishes a plain TCP connection to the backend and proxies data.
 // clientConn can be either net.Conn or tls.Conn. Backend connection is always net.Conn.
 func (p *PostgresProxy) forwardConnection(clientConn net.Conn, startupMsg *StartupParameters, service *kubernetes.ServiceInfo) error {
-	backendAddr := fmt.Sprintf("%s:%d", service.ClusterDNS, service.Port) // ClusterIP veya ClusterDNS
-	log.Printf("Forwarding connection from %s to plaintext backend: %s", clientConn.RemoteAddr(), backendAddr)
+	backendAddr := fmt.Sprintf("%s:%d", service.ClusterDNS, service.Port)
 
 	backendConn, err := net.Dial("tcp", backendAddr)
 	if err != nil {
@@ -629,16 +602,10 @@ func (p *PostgresProxy) forwardConnection(clientConn net.Conn, startupMsg *Start
 	}
 	defer backendConn.Close()
 
-	log.Printf("Connected to backend %s successfully.", backendAddr)
-
-	// Değiştirilmiş startup mesajını backend'e gönder
 	if _, err := backendConn.Write(startupMsg.RawMessage); err != nil {
-		// Backend'e yazma hatası olursa bağlantıyı kapat ve hata döndür
 		return fmt.Errorf("error forwarding modified startup message to backend %s: %v", backendAddr, err)
 	}
-	log.Printf("Forwarded modified startup message to backend %s.", backendAddr)
 
-	// Veri akışını çift yönlü kopyala
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -647,27 +614,23 @@ func (p *PostgresProxy) forwardConnection(clientConn net.Conn, startupMsg *Start
 
 	copyData := func(dst net.Conn, src net.Conn, srcDesc, dstDesc string) {
 		defer wg.Done()
-		// Kaynaktan okuma veya hedefe yazma hatası olursa diğer bağlantıyı da kapatmayı dene
 		defer func() {
 			if tcpConn, ok := dst.(*net.TCPConn); ok {
-				_ = tcpConn.CloseWrite() // Yazma tarafını kapat
+				_ = tcpConn.CloseWrite()
 			} else if tlsConn, ok := dst.(*tls.Conn); ok {
-				_ = tlsConn.CloseWrite() // TLS için de CloseWrite var
+				_ = tlsConn.CloseWrite()
 			} else {
-				// Diğer türler için Close dene (ama bu okumayı da kapatabilir)
 				_ = dst.Close()
 			}
-			log.Printf("Copy routine finished: %s -> %s", srcDesc, dstDesc)
+			// Gereksiz log kaldırıldı
 		}()
 
-		copied, err := io.Copy(dst, src)
-		log.Printf("Copied %d bytes: %s -> %s", copied, srcDesc, dstDesc)
+		_, err := io.Copy(dst, src)
+		// Gereksiz detaylı byte log kaldırıldı
 		if err != nil {
-			// "use of closed network connection" hatasını görmezden gel, diğer hataları logla
-			// io.EOF normal bir kapanmadır, onu da loglamaya gerek yok.
 			netErr, isNetErr := err.(net.Error)
 			if err != io.EOF && (!isNetErr || !netErr.Timeout()) && !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Printf("Error during copy %s -> %s: %v", srcDesc, dstDesc, err)
+				log.Printf("Error during data transfer: %v", err)
 			}
 		}
 	}
@@ -675,8 +638,8 @@ func (p *PostgresProxy) forwardConnection(clientConn net.Conn, startupMsg *Start
 	go copyData(backendConn, clientConn, clientDesc, backendDesc)
 	go copyData(clientConn, backendConn, backendDesc, clientDesc)
 
-	wg.Wait() // İki kopyalama işlemi de bitene kadar bekle
-	log.Printf("Data forwarding finished between %s and %s.", clientDesc, backendDesc)
+	wg.Wait()
+	// Gereksiz log kaldırıldı
 	return nil
 }
 
