@@ -15,7 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Removed unused logging logic.
+### Fixed
+
+### Security
+
+## [1.0.4] - 2024-03-26
+
+### Added
+
+### Changed
+
+- Updated logging logic to remove unused parts
+- Improved PostgreSQL proxy configuration with auto TLS
+- Updated scripts and project settings to enforce SSL mode
+- Applied patches for replicas configuration
+- Adjusted deployment strategy to use DaemonSet instead of Deployment
+
+### Deprecated
+
+### Removed
+
+- Removed unused logging logic
+- Removed unnecessary entries from gitignore
+- Deleted 001-rbac.yaml, daemonset.yaml, service.yaml, kustomization.yaml from base and overlays
+- Removed postgresql.yaml and postgresql-service.yaml from postgresql directory
+- Eliminated database-patch.yaml and its kustomization from test overlay
 
 ### Fixed
 
