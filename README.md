@@ -1,5 +1,10 @@
 # XDatabase Proxy
 
+![XDatabase Proxy in Action](static/images/works-perfect.png)
+
+> **XDatabase Proxy in Action:**
+> The screenshot below demonstrates a successful, secure PostgreSQL connection established through the xdatabase-proxy. The proxy automatically generates and manages TLS certificates, ensuring encrypted traffic between your client and the database. This seamless integration with Kubernetes and real-time certificate handling provides both security and ease of use for your cloud-native database workloads.
+
 XDatabase Proxy is a smart proxy solution for your database deployments running in Kubernetes environments. This proxy is designed to manage and route connections between different database deployments.
 
 ## Features
@@ -211,6 +216,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Contact
 
 If you have any questions or suggestions, please reach out through GitHub Issues.
+
+## Production Deployment
+
+To deploy xdatabase-proxy in your production Kubernetes cluster, simply run:
+
+```bash
+kubectl apply -f kubernetes/examples/production/deploy.yaml
+```
+
+Or, you can use the raw GitHub URL directly:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/hasirciogli/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
+```
 
 ---
 
