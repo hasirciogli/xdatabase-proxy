@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: xdatabase-proxy
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: xdatabase-proxy-sa
+  namespace: xdatabase-proxy
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xdatabase-proxy-role
+  namespace: xdatabase-proxy
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints", "secrets", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xdatabase-proxy-role-binding
+  namespace: xdatabase-proxy
+subjects:
+  - kind: ServiceAccount
+    name: xdatabase-proxy-sa
+    namespace: xdatabase-proxy
+roleRef:
+  kind: ClusterRole
+  name: xdatabase-proxy-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: xdatabase-proxy
+  namespace: xdatabase-proxy
+spec:
+  selector:
+    matchLabels:
+      app: xdatabase-proxy
+  template:
+    metadata:
+      labels:
+        app: xdatabase-proxy
+    spec:
+      serviceAccountName: xdatabase-proxy-sa
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: xdatabase-proxy
+          image: ghcr.io/hasirciogli/xdatabase-proxy:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5432
+              hostPort: 5432
+              name: proxy-port
+          env:
+            - name: MODE
+              value: production
+            - name: POSTGRESQL_PROXY_ENABLED
+              value: "true"
+            - name: NAMESPACE
+              value: xdatabase-proxy
+            - name: POSTGRESQL_PROXY_START_PORT
+              value: "5432"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xdatabase-proxy
+  namespace: xdatabase-proxy
+spec:
+  selector:
+    app: xdatabase-proxy
+  ports:
+    - port: 5432
+      targetPort: proxy-port
+      name: proxy-port
+  type: ClusterIP
