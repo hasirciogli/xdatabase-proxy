@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.0.6] - 2025-07-01
+
+### Added
+
+- Added KUBE_CONTEXT environment variable to support multiple Kubernetes contexts (only used in development/test mode, ignored in prod) (dummy variable update for testing)
+
+### Changed
+
+- Updated README.md with new details
+
 ## [1.0.5] - 2025-06-30
 
 ### Added
