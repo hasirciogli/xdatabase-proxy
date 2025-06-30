@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.0.5] - 2025-06-30
+
+### Added
+
+### Changed
+
+- Improved TLS handshake timeout handling
+- Enhanced TLS configuration with stronger security settings
+- Added session ticket support for improved session resumption
+- Updated TLS version support to include TLS 1.2 and 1.3
+- Improved error handling for TLS handshake failures
+- Added more detailed logging for TLS handshake process
+
+### Removed
+
+### Fixed
+
+### Security
+
 ## [1.0.4] - 2024-03-26
 
 ### Added
