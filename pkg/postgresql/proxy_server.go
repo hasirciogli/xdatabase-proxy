@@ -347,11 +347,14 @@ func (p *PostgresProxy) Start(port int, certFile, keyFile string) error {
 			return fmt.Errorf("error loading TLS key pair from %s and %s: %v", certFile, keyFile, errLoad)
 		}
 		p.tlsConfig = &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: true,
-			ClientAuth:         tls.NoClientCert,
-			ServerName:         "localhost",
+			Certificates:             []tls.Certificate{cert},
+			MinVersion:               tls.VersionTLS12,
+			MaxVersion:               tls.VersionTLS13,
+			PreferServerCipherSuites: true,
+			SessionTicketsDisabled:   false,
+			ClientAuth:               tls.NoClientCert,
 		}
+
 		log.Printf("TLS enabled with certificate files")
 	} else {
 		certPEM, keyPEM, err := getSelfCertsFromK8s(p)
@@ -427,6 +430,7 @@ func (p *PostgresProxy) HandleConnection(initialConn net.Conn) {
 				log.Printf("Error sending SSL response: %v", err)
 				return
 			}
+			conn.SetDeadline(time.Now().Add(5 * time.Second)) // 💥 handshake timeout
 			// Gereksiz "Performing TLS handshake" log kaldırıldı
 			// Gereksiz "Using tls.Config with ServerName" log kaldırıldı
 			tlsConn := tls.Server(conn, p.tlsConfig)
@@ -439,6 +443,7 @@ func (p *PostgresProxy) HandleConnection(initialConn net.Conn) {
 				})
 				return
 			}
+			conn.SetDeadline(time.Time{}) // deadline sıfırla
 			// Gereksiz "TLS handshake successful" log kaldırıldı
 			conn = tlsConn
 			startupMessageReader = conn
