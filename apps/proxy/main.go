@@ -69,7 +69,12 @@ func startPostgresProxy(ctx context.Context, wg *sync.WaitGroup) {
 		panic("POSTGRESQL_PROXY_START_PORT is not set (REQUIRED)")
 	}
 
-	proxy, err := postgresql.NewPostgresProxy("local-test")
+	kubeContext := os.Getenv("KUBE_CONTEXT")
+	if kubeContext == "" {
+		kubeContext = "local-test"
+	}
+
+	proxy, err := postgresql.NewPostgresProxy(kubeContext)
 	if err != nil {
 		log.Fatalf("Failed to create PostgreSQL proxy: %v", err)
 	}

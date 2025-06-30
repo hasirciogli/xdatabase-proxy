@@ -51,24 +51,24 @@ go build -o xdatabase-proxy apps/proxy/main.go
 
 ### Environment Variables
 
-| Variable                     | Description                          | Default Value |
-| ---------------------------- | ------------------------------------ | ------------- |
-| KUBE_CONTEXT                 | Kubernetes context name              | local-test    |
-| POSTGRESQL_PROXY_ENABLED     | Enable PostgreSQL proxy              | -             |
-| POSTGRESQL_PROXY_START_PORT  | Starting port for PostgreSQL proxy   | -             |
-| NAMESPACE                    | Namespace for certificate storage    | -             |
+| Variable                    | Description                                                                   | Required | Default    | Example Value   |
+| --------------------------- | ----------------------------------------------------------------------------- | -------- | ---------- | --------------- |
+| KUBE_CONTEXT                | Kubernetes context name (only used in development/test mode, ignored in prod) | No       | local-test | local-test      |
+| POSTGRESQL_PROXY_ENABLED    | Enable PostgreSQL proxy. Must be set to 'true' to activate the proxy.         | Yes      | -          | true            |
+| POSTGRESQL_PROXY_START_PORT | Starting port for PostgreSQL proxy. Must be set.                              | Yes      | 5432       | 5432            |
+| NAMESPACE                   | Namespace where the proxy runs and self-signed certs are stored.              | Yes      | -          | xdatabase-proxy |
 
 ### Kubernetes Labels
 
 The following labels are required for the proxy to identify database services:
 
-| Label                         | Description                                                  | Example Value   |
-| ----------------------------- | ------------------------------------------------------------ | --------------- |
-| xdatabase-proxy-enabled       | Whether the service should be managed by the proxy           | true            |
-| xdatabase-proxy-deployment-id | Database deployment ID                                       | db-deployment-1 |
-| xdatabase-proxy-database-type | Database type                                                | postgresql      |
-| xdatabase-proxy-pooled        | Whether this is a connection pooling service                 | true/false      |
-| xdatabase-proxy-destination-port | Target port for the database connection                   | 5432            |
+| Label                            | Description                                        | Example Value   |
+| -------------------------------- | -------------------------------------------------- | --------------- |
+| xdatabase-proxy-enabled          | Whether the service should be managed by the proxy | true            |
+| xdatabase-proxy-deployment-id    | Database deployment ID                             | db-deployment-1 |
+| xdatabase-proxy-database-type    | Database type                                      | postgresql      |
+| xdatabase-proxy-pooled           | Whether this is a connection pooling service       | true/false      |
+| xdatabase-proxy-destination-port | Target port for the database connection            | 5432            |
 
 > **Important**: This proxy is designed to be tool-agnostic. You don't need to use any specific pooling or cluster management solution. Simply add the appropriate labels to any service, and the proxy will route connections accordingly based on those labels.
 
@@ -77,11 +77,13 @@ The following labels are required for the proxy to identify database services:
 The proxy supports three connection scenarios:
 
 1. **Direct Connection**
+
    - Client → PostgreSQL
    - Simple, direct connection to a single PostgreSQL instance
    - Use when connection pooling is not needed
 
 2. **Connection Pooling**
+
    - Client → Connection Pooler → PostgreSQL
    - Efficient connection management
    - Recommended for applications with many connections
@@ -98,6 +100,7 @@ The proxy supports three connection scenarios:
 ### Service Definition Examples
 
 #### 1. Direct PostgreSQL Service
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -107,8 +110,8 @@ metadata:
     xdatabase-proxy-enabled: "true"
     xdatabase-proxy-deployment-id: "db-deployment-1"
     xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "false"  # Direct PostgreSQL connection
-    xdatabase-proxy-destination-port: "5432"  # Target PostgreSQL port
+    xdatabase-proxy-pooled: "false" # Direct PostgreSQL connection
+    xdatabase-proxy-destination-port: "5432" # Target PostgreSQL port
 spec:
   ports:
     - port: 5432
@@ -116,6 +119,7 @@ spec:
 ```
 
 #### 2. Connection Pooling Service (Example with PgBouncer)
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -125,8 +129,8 @@ metadata:
     xdatabase-proxy-enabled: "true"
     xdatabase-proxy-deployment-id: "db-deployment-1"
     xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "true"  # This indicates it's a connection pooling service
-    xdatabase-proxy-destination-port: "6432"  # Target pooler port
+    xdatabase-proxy-pooled: "true" # This indicates it's a connection pooling service
+    xdatabase-proxy-destination-port: "6432" # Target pooler port
 spec:
   ports:
     - port: 6432
@@ -134,6 +138,7 @@ spec:
 ```
 
 #### 3. Multi-Node Cluster Setup (Example with Pgpool-II)
+
 ```yaml
 # Connection Pooler Service (Required for multi-node)
 apiVersion: v1
@@ -144,27 +149,15 @@ metadata:
     xdatabase-proxy-enabled: "true"
     xdatabase-proxy-deployment-id: "db-deployment-1"
     xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "true"  # Required for multi-node setup
+    xdatabase-proxy-pooled: "true" # Required for multi-node setup
+    xdatabase-proxy-destination-port: "6432" # Target cluster manager port (Same as the connection pooler port)
 spec:
   ports:
     - port: 6432
       name: postgresql
----
-# Cluster Manager Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: cluster-manager
-  labels:
-    xdatabase-proxy-enabled: "true"
-    xdatabase-proxy-deployment-id: "db-deployment-1"
-    xdatabase-proxy-database-type: "postgresql"
-    xdatabase-proxy-pooled: "true"  # Must be true for cluster manager
-spec:
-  ports:
-    - port: 9999  # Target port for your cluster manager
-      name: postgresql
 ```
+
+> **Note:** For multi-node clusters (e.g., Pgpool-II, Patroni, etc.), you only need to define the connection pooler service as shown above. There is no need for a separate cluster manager service definition; the proxy will automatically handle routing based on labels.
 
 ### Connection String Format
 
@@ -173,6 +166,7 @@ postgresql://username.deployment_id[.pool]@proxy-host:port/dbname
 ```
 
 Examples:
+
 ```
 # 1. Direct PostgreSQL Connection
 postgresql://myuser.db-deployment-1@localhost:3001/mydb
@@ -233,4 +227,6 @@ kubectl apply -f https://raw.githubusercontent.com/hasirciogli/xdatabase-proxy/m
 
 ---
 
-*(Note: A Turkish version of this README is planned and will be added soon.)*
+_(Note: A Turkish version of this README is planned and will be added soon.)_
+
+---
