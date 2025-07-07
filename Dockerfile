@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o main apps/proxy/main.go
+RUN go build -o main apps/proxy/main.go
 
 FROM alpine:latest as runner
 
