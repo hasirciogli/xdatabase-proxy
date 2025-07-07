@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [1.0.7] - 2025-07-07
+
+### Added
+
+- Added GitHub Actions workflow to build and push Docker images for multiple platforms (amd64, arm64, 386)
+
 ## [1.0.6] - 2025-07-01
 
 ### Added
