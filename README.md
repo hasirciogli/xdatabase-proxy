@@ -225,6 +225,10 @@ Or, you can use the raw GitHub URL directly:
 kubectl apply -f https://raw.githubusercontent.com/hasirciogli/xdatabase-proxy/main/kubernetes/examples/production/deploy.yaml
 ```
 
+## How it works ?
+<img width="1303" height="3840" alt="Untitled diagram _ Mermaid Chart-2025-07-27-142550" src="https://github.com/user-attachments/assets/e27af19d-4784-4c9b-8e5d-4d036d07a6d2" />
+
+
 ---
 
 _(Note: A Turkish version of this README is planned and will be added soon.)_
